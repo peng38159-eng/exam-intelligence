@@ -1,0 +1,14 @@
+streamlit
+chromadb>=0.4.22
+langchain-core>=0.1.0
+langgraph>=0.0.20
+pymupdf>=1.23.0
+langchain-ollama
+langchain-community
+sentence-transformers>=2.2.0
+networkx>=3.2
+spacy
+pandas>=2.1.0
+numpy>=1.24.0
+tqdm>=4.66.0
+plotly>=5.18.0
