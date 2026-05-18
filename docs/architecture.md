@@ -62,9 +62,29 @@
 ## 数据存储
 
 - `data/vectorstore/` — ChromaDB 持久化目录
-- `data/graph/` — NetworkX 图谱序列化文件
-- `data/uploads/` — 用户上传的PDF/ TXT原始文件
-- `data/cache/` — 临时缓存
+- `data/graph/` — NetworkX 图谱序列化文件（pickle格式）
+- `data/uploads/` — 用户上传的PDF/TXT原始文件
+- `data/review_schedule.pkl` — 遗忘曲线复习计划
+- 运行时数据目录均被 `.gitignore` 排除
+
+## 配置系统
+
+所有路径和参数通过 `src/config.py` 统一管理，支持环境变量覆盖：
+
+```python
+from src.config import get_config
+cfg = get_config()
+# cfg.embedding_model, cfg.data_dir, cfg.chunk_size 等
+```
+
+## 混合检索算法
+
+```
+final_score = alpha × 向量相似度 + (1-alpha) × 关键词命中率
+
+关键词命中率使用 2-gram 到 8-gram 的 n-gram 匹配，
+有效避免中文单字分词导致的匹配噪音。
+```
 
 ## 技术选型理由
 
@@ -75,3 +95,13 @@
 | 图谱 | NetworkX | 简化版Neo4j，无需额外安装 |
 | Agent | LangGraph | 状态机驱动，多Agent协作成熟方案 |
 | 前端 | Streamlit | Python直出Web，开发效率极高 |
+
+## 遗忘曲线模型
+
+采用艾宾浩斯遗忘曲线数据，根据用户答题正确率动态调整复习间隔：
+
+- 答错：立即复习（1分钟间隔）
+- 答对 + 掌握度 ≥ 90%：30天后复习
+- 答对 + 掌握度 ≥ 70%：7天后复习
+- 答对 + 掌握度 ≥ 50%：1天后复习
+- 答对 + 掌握度 < 50%：8小时后/1小时后复习

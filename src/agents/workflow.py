@@ -243,7 +243,7 @@ def mock_llm_response(prompt: str) -> str:
             "review_priority": ["Stolz公式", "Heine定理", "极限性质综合"],
             "summary": "ε-N定义掌握较好，但Stolz公式和Heine定理是薄弱点，建议专项练习。"
         }, ensure_ascii=False)
-    elif "SearchAgent" in prompt or "精确检索" in prompt:
+    elif "检索Agent" in prompt or "知识检索" in prompt:
         return json.dumps({
             "retrieved_chunks": [
                 {"text": "极限的ε-N定义：设f(n)为数列，∀ε>0，∃N∈N+，当n>N时，恒有|f(n)-A|<ε，则称A为数列的极限。", "source": "同济高数教材", "page": 23, "relevance": 0.95},

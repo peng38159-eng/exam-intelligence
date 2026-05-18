@@ -59,9 +59,17 @@ class DocumentIngestion:
         return pages
 
     def extract_text_from_txt(self, txt_path: str) -> List[dict]:
-        """从 TXT 提取文本"""
-        with open(txt_path, "r", encoding="utf-8") as f:
-            text = f.read()
+        """从 TXT 提取文本，自动检测编码"""
+        text = None
+        for encoding in ("utf-8", "gbk", "gb2312", "gb18030", "latin-1"):
+            try:
+                with open(txt_path, "r", encoding=encoding) as f:
+                    text = f.read()
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        if text is None:
+            raise ValueError(f"无法识别文件编码: {txt_path}")
         return [{
             "page": 1,
             "text": text.strip(),

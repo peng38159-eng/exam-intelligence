@@ -147,16 +147,44 @@ class KnowledgeGraph:
             return []
 
     def get_related_concepts(self, concept: str, depth: int = 1) -> List[Tuple[str, str]]:
-        """获取某概念的相关概念及其关系"""
+        """获取某概念的相关概念及其关系
+
+        返回指定深度内的所有相邻概念（出边 + 入边），
+        按深度从小到大排序。
+        """
         if concept not in self.graph:
             return []
 
         related = []
-        for neighbor in nx.descendants(self.graph, concept):
+        # 出边（当前概念 → 邻居）—— 不限制 depth
+        for neighbor in self.graph.successors(concept):
             edge_data = self.graph.get_edge_data(concept, neighbor)
-            if edge_data:
-                rel_type = edge_data.get("relation", "相关")
-                related.append((neighbor, rel_type))
+            rel_type = edge_data.get("relation", "相关") if edge_data else "相关"
+            related.append((neighbor, rel_type))
+
+        # 入边（前驱 → 当前概念），用 "前驱" 标记方向
+        for neighbor in self.graph.predecessors(concept):
+            if neighbor not in {r[0] for r in related}:
+                edge_data = self.graph.get_edge_data(neighbor, concept)
+                rel_type = edge_data.get("relation", "相关") if edge_data else "相关"
+                related.append((neighbor, f"前驱·{rel_type}"))
+
+        # 若 depth>1，按 BFS 扩展
+        if depth > 1:
+            extended = list(related)
+            # BFS 从 concept 出发搜 depth 步
+            for _ in range(depth - 1):
+                frontier: set[str] = set()
+                for neighbor, _rel in extended:
+                    for succ in self.graph.successors(neighbor):
+                        frontier.add(succ)
+                    for pred in self.graph.predecessors(neighbor):
+                        frontier.add(pred)
+                frontier.discard(concept)
+                for node in frontier:
+                    if node not in {r[0] for r in related} and node not in {r[0] for r in extended}:
+                        extended.append((node, "间接关联"))
+                related = extended
 
         return related[:20]  # 最多返回20个
 

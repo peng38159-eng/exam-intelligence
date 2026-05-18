@@ -28,7 +28,7 @@ def test_knowledge_graph_save_load_and_depth(tmp_path: Path):
     assert loaded.summary()["nodes"] == 3
     assert ("连续", "前置") in loaded.get_related_concepts("极限", depth=1)
     assert ("导数", "前置") not in loaded.get_related_concepts("极限", depth=1)
-    assert ("导数", "前置") in loaded.get_related_concepts("极限", depth=2)
+    assert ("导数", "间接关联") in loaded.get_related_concepts("极限", depth=2)
 
 
 def test_question_generator_templates_are_real_questions():

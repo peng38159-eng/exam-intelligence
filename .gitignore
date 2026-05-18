@@ -1,20 +1,57 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-.env
-.venv/
-env/
-venv/
+*.so
 *.egg-info/
 dist/
 build/
-.chroma/
-*.db
+eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories (runtime data, not source)
 data/uploads/
 data/vectorstore/
 data/graph/
 data/cache/
-data/*.parquet
+
+# Pickle / binary runtime artifacts
+*.pkl
+*.parquet
+
+# Secret files
+.env
+.env.local
+*.secret
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# pytest
 .pytest_cache/
+.coverage
+htmlcov/
+
+# ruff
 .ruff_cache/
-.DS_Store
+
+# Streamlit
+.streamlit/

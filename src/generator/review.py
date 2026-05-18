@@ -202,6 +202,78 @@ class QuestionGenerator:
     def _load_bank(self) -> Dict:
         # 加载内置题库（可扩展为从向量库检索生成）
         return {
+            "英语一": {
+                "阅读理解": [
+                    {
+                        "type": "选择题",
+                        "difficulty": "中档",
+                        "template": "Read the passage and answer: What is the author's main argument regarding {topic}?",
+                        "answer_template": "The author argues that {topic} …（定位主题句并结合段落首尾句推断主旨）。",
+                    },
+                    {
+                        "type": "选择题",
+                        "difficulty": "基础",
+                        "template": "The word \"{word}\" in paragraph 2 most likely means ______.",
+                        "answer_template": "根据上下文线索（同义复现 / 反义对比 / 举例说明）推断词义。",
+                    },
+                ],
+                "翻译": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "困难",
+                        "template": "Translate the following sentence into Chinese: \"{sentence}\"",
+                        "answer_template": "拆长句 → 找主干 → 处理定语从句/状语 → 调整语序为中文表达习惯。",
+                    },
+                ],
+                "写作": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "中档",
+                        "template": "Write an essay on the topic: \"{essay_topic}\" (about 160-200 words).",
+                        "answer_template": "三段式：引入主题 + 论点展开（2-3个分论点）+ 总结升华。注意使用衔接词。",
+                    },
+                ],
+            },
+            "政治": {
+                "马原": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "中档",
+                        "template": "用矛盾的普遍性与特殊性辩证关系原理，分析 {scenario}。",
+                        "answer_template": "普遍性寓于特殊性之中，通过特殊性表现出来；二者在一定条件下相互转化。结合材料具体分析。",
+                    },
+                    {
+                        "type": "选择题",
+                        "difficulty": "基础",
+                        "template": "辩证唯物主义认为，意识的本质是 ______。",
+                        "answer_template": "意识是人脑对客观存在的主观映象（反映），体现了物质决定意识、意识反作用于物质的辩证关系。",
+                    },
+                ],
+                "毛中特": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "中档",
+                        "template": "结合 {policy}，论述新时代坚持和发展中国特色社会主义的基本方略。",
+                        "answer_template": "从'十四个坚持'中选择若干相关要点，结合政策背景与目标展开论述。",
+                    },
+                ],
+                "史纲": [
+                    {
+                        "type": "选择题",
+                        "difficulty": "基础",
+                        "template": "{event} 的历史意义包括哪些方面？",
+                        "answer_template": "从政治、经济、思想文化、国际影响四个维度归纳。",
+                    },
+                ],
+                "思修": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "基础",
+                        "template": "结合材料，谈谈如何在 {context} 中践行社会主义核心价值观。",
+                        "answer_template": "从个人层面（爱国敬业诚信友善）延展到社会/国家层面，结合具体行为。",
+                    },
+                ],
+            },
             "数学一": {
                 "极限": [
                     {
@@ -269,10 +341,29 @@ class QuestionGenerator:
             return self._generate_placeholder(topic, difficulty)
 
         template = self._random.choice(templates)
-        safe_kwargs = {"a_n": "1/n", "L": "0", "x0": "1"}
+        # 所有可能的占位符提供安全默认值
+        safe_kwargs = {
+            "a_n": "1/n",
+            "L": "0",
+            "x0": "1",
+            "topic": topic,
+            "word": "ambiguous",
+            "sentence": "The quick brown fox jumps over the lazy dog.",
+            "essay_topic": topic,
+            "scenario": "当前社会热点问题",
+            "policy": "某项国家政策",
+            "event": "某历史事件",
+            "context": "日常生活",
+        }
         safe_kwargs.update(kwargs)
-        question_text = template["template"].format(**safe_kwargs)
-        answer_text = template["answer_template"].format(**safe_kwargs)
+
+        # 使用 format_map 而不引发 KeyError（缺失占位符保留原样）
+        class _SafeDict(dict):
+            def __missing__(self, key):
+                return "{" + key + "}"
+
+        question_text = template["template"].format_map(_SafeDict(safe_kwargs))
+        answer_text = template["answer_template"].format_map(_SafeDict(safe_kwargs))
 
         return Question(
             id=self._random.randint(1000, 9999),

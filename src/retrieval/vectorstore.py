@@ -119,12 +119,19 @@ class VectorStore:
         # 向量检索
         vector_results = self.search(query, top_k * 2)
 
-        # 简单关键词匹配：统计 query 中词在 doc 中的出现次数
-        query_terms = set(query)
+        # 关键词匹配：用长度为 2~8 的字符 n-gram 避免中文单字分词
+        query_terms = set()
+        for n in (2, 3, 4, 5, 6, 7, 8):
+            for i in range(len(query) - n + 1):
+                term = query[i:i + n]
+                if not term.isspace():
+                    query_terms.add(term)
+        # 同时保留原始 query 本身作为完整短语
+        query_terms.add(query.strip().lower())
+
         keyword_scores = {}
         for r in vector_results:
             text_lower = r["text"].lower()
-            # 简单词匹配分数
             matches = sum(1 for term in query_terms if term in text_lower)
             keyword_scores[r["chunk_id"]] = matches / max(len(query_terms), 1)
 
