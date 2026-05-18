@@ -9,8 +9,17 @@
 
 from dataclasses import dataclass, field
 from typing import Literal, Optional
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import HumanMessage, AIMessage
+try:
+    from langgraph.graph import StateGraph, END
+except Exception:  # 允许在未安装 LangGraph 时运行核心 Mock 流程和单元测试
+    StateGraph = None
+    END = "__end__"
+try:
+    from langchain_core.messages import AIMessage
+except Exception:
+    @dataclass
+    class AIMessage:
+        content: str
 import json
 
 
@@ -175,18 +184,7 @@ def call_llm(prompt: str, model: str = "qwen3:8b") -> str:
 
 def mock_llm_response(prompt: str) -> str:
     """模拟LLM响应（开发阶段使用）"""
-    if "检索" in prompt or "SearchAgent" in prompt:
-        return json.dumps({
-            "retrieved_chunks": [
-                {"text": "极限的ε-N定义：设f(n)为数列，∀ε>0，∃N∈N+，当n>N时，恒有|f(n)-A|<ε，则称A为数列的极限。", "source": "同济高数教材", "page": 23, "relevance": 0.95},
-                {"text": "夹逼定理：如果数列x_n, y_n, z_n满足x_n≤y_n≤z_n，且lim x_n = lim z_n = A，则lim y_n = A。", "source": "同济高数教材", "page": 25, "relevance": 0.88},
-            ],
-            "graph_paths": [
-                {"path": ["数列", "极限", "连续", "导数"], "relation": "包含"},
-            ],
-            "reasoning_hints": "极限是微分和连续的基础，前置知识为数列。"
-        }, ensure_ascii=False)
-    elif "推理" in prompt or "ReasonAgent" in prompt:
+    if "推理Agent" in prompt or "深度解答" in prompt:
         return json.dumps({
             "answer": "根据ε-N定义，证明lim(n→∞) 1/n = 0。\n\n证明：∀ε>0，要使|1/n - 0| < ε，即1/n < ε，只需n > 1/ε。\n\n取N = ⌈1/ε⌉，则当n > N时，有|1/n - 0| < ε，故lim(n→∞) 1/n = 0。\n\n关键点：ε的任意性是极限定义的核心。",
             "reasoning_chain": "从ε-N定义出发，通过不等式变换找到N的构造方法，体现了极限的ε-N语言本质。",
@@ -197,7 +195,7 @@ def mock_llm_response(prompt: str) -> str:
             "confidence": 0.92,
             "gaps": ""
         }, ensure_ascii=False)
-    elif "出题" in prompt or "GeneratorAgent" in prompt:
+    elif "出题Agent" in prompt or "高质量练习题" in prompt:
         return json.dumps({
             "questions": [
                 {
@@ -229,7 +227,7 @@ def mock_llm_response(prompt: str) -> str:
                 },
             ]
         }, ensure_ascii=False)
-    elif "复盘" in prompt or "ReviewAgent" in prompt:
+    elif "复盘Agent" in prompt or "答题结果" in prompt:
         return json.dumps({
             "analysis": [
                 {"question_id": 1, "correct": True, "weak_concepts": [], "mastery_delta": 0.1},
@@ -244,6 +242,17 @@ def mock_llm_response(prompt: str) -> str:
             },
             "review_priority": ["Stolz公式", "Heine定理", "极限性质综合"],
             "summary": "ε-N定义掌握较好，但Stolz公式和Heine定理是薄弱点，建议专项练习。"
+        }, ensure_ascii=False)
+    elif "SearchAgent" in prompt or "精确检索" in prompt:
+        return json.dumps({
+            "retrieved_chunks": [
+                {"text": "极限的ε-N定义：设f(n)为数列，∀ε>0，∃N∈N+，当n>N时，恒有|f(n)-A|<ε，则称A为数列的极限。", "source": "同济高数教材", "page": 23, "relevance": 0.95},
+                {"text": "夹逼定理：如果数列x_n, y_n, z_n满足x_n≤y_n≤z_n，且lim x_n = lim z_n = A，则lim y_n = A。", "source": "同济高数教材", "page": 25, "relevance": 0.88},
+            ],
+            "graph_paths": [
+                {"path": ["数列", "极限", "连续", "导数"], "relation": "包含"},
+            ],
+            "reasoning_hints": "极限是微分和连续的基础，前置知识为数列。"
         }, ensure_ascii=False)
     return json.dumps({"error": "未知prompt类型"})
 
@@ -369,6 +378,8 @@ def review_node(state: AgentState) -> AgentState:
 
 def build_exam_workflow():
     """构建考研Agent工作流图"""
+    if StateGraph is None:
+        raise RuntimeError("LangGraph 未安装，请先执行 pip install -r requirements.txt")
 
     workflow = StateGraph(AgentState)
 
@@ -403,40 +414,23 @@ def run_exam_query(
     Returns:
         AgentState: 包含各Agent执行结果
     """
-    # 根据模式决定执行路径
-    if mode == "answer":
-        # 检索 → 推理 → 结束
-        workflow = StateGraph(AgentState)
-        workflow.add_node("search", search_node)
-        workflow.add_node("reason", reason_node)
-        workflow.set_entry_point("search")
-        workflow.add_edge("search", "reason")
-        workflow.add_edge("reason", END)
-        compiled = workflow.compile()
-        initial = AgentState(user_query=query, subject=subject)
-        result = compiled.invoke(initial)
+    # 使用显式顺序执行作为稳定默认路径：避免 LangGraph 版本差异导致
+    # dataclass state 被转换成 dict 后 UI 访问属性失败。
+    state = AgentState(user_query=query, subject=subject)
+    state = search_node(state)
+    if state.error:
+        return state
 
-    elif mode == "practice":
-        # 检索 → 推理 → 出题 → 结束
-        workflow = StateGraph(AgentState)
-        workflow.add_node("search", search_node)
-        workflow.add_node("reason", reason_node)
-        workflow.add_node("generate", generate_node)
-        workflow.set_entry_point("search")
-        workflow.add_edge("search", "reason")
-        workflow.add_edge("reason", "generate")
-        workflow.add_edge("generate", END)
-        compiled = workflow.compile()
-        initial = AgentState(user_query=query, subject=subject)
-        result = compiled.invoke(initial)
+    state = reason_node(state)
+    if state.error or mode == "answer":
+        return state
 
-    else:
-        # 完整流程：检索 → 推理 → 出题 → 复盘
-        compiled = build_exam_workflow()
-        initial = AgentState(user_query=query, subject=subject)
-        result = compiled.invoke(initial)
+    state = generate_node(state)
+    if state.error or mode == "practice":
+        return state
 
-    return result
+    state = review_node(state)
+    return state
 
 
 if __name__ == "__main__":

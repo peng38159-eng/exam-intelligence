@@ -11,6 +11,10 @@ build/
 .chroma/
 *.db
 data/uploads/
+data/vectorstore/
 data/graph/
 data/cache/
+data/*.parquet
+.pytest_cache/
+.ruff_cache/
 .DS_Store

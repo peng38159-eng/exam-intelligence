@@ -3,29 +3,35 @@
 基于 NetworkX 构建知识点概念图谱，支持实体识别、关系抽取和图上路径推理
 """
 
-import os
-import json
 import pickle
 from pathlib import Path
-from typing import List, Dict, Set, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 
 import networkx as nx
-import pandas as pd
 
 
 class KnowledgeGraph:
     """知识点知识图谱：基于 NetworkX 实现"""
 
-    def __init__(self, graph_path: str = "data/graph/knowledge_graph.gml"):
+    def __init__(self, graph_path: str = "data/graph/knowledge_graph.gml", verbose: bool = True):
         self.graph_path = Path(graph_path)
         self.graph_path.parent.mkdir(parents=True, exist_ok=True)
+        self.verbose = verbose
 
-        if self.graph_path.exists():
+        pkl_path = self.graph_path.with_suffix(".pkl")
+        if pkl_path.exists():
+            with open(pkl_path, "rb") as f:
+                self.graph = pickle.load(f)
+            if self.verbose:
+                print(f"✓ 知识图谱已加载: {len(self.graph.nodes)} 节点, {len(self.graph.edges)} 边")
+        elif self.graph_path.exists():
             self.graph = nx.read_gml(str(self.graph_path))
-            print(f"✓ 知识图谱已加载: {len(self.graph.nodes)} 节点, {len(self.graph.edges)} 边")
+            if self.verbose:
+                print(f"✓ 知识图谱已加载: {len(self.graph.nodes)} 节点, {len(self.graph.edges)} 边")
         else:
             self.graph = nx.DiGraph()
-            print("新建空知识图谱")
+            if self.verbose:
+                print("新建空知识图谱")
 
         # 预定义关系类型
         self.RELATION_TYPES = {
@@ -103,7 +109,7 @@ class KnowledgeGraph:
 
         return list(set(found))
 
-    def auto_build_from_chunks(self, df: pd.DataFrame) -> None:
+    def auto_build_from_chunks(self, df) -> None:
         """从已入库的 chunks 自动构建图谱
 
         思路：相邻 chunk 的标题/关键词视为关联概念
@@ -122,7 +128,8 @@ class KnowledgeGraph:
 
             prev_concepts = concepts[-5:]  # 滑动窗口保留最近5个概念
 
-        print(f"图谱构建完成: {len(self.graph.nodes)} 节点, {len(self.graph.edges)} 边")
+        if self.verbose:
+            print(f"图谱构建完成: {len(self.graph.nodes)} 节点, {len(self.graph.edges)} 边")
 
     def find_paths(
         self,
@@ -184,7 +191,8 @@ class KnowledgeGraph:
         # NetworkX GML 不支持某些中文，用不同后缀
         with open(self.graph_path.with_suffix(".pkl"), "wb") as f:
             pickle.dump(self.graph, f)
-        print(f"✓ 图谱已保存至 {self.graph_path}")
+        if self.verbose:
+            print(f"✓ 图谱已保存至 {self.graph_path.with_suffix('.pkl')}")
 
     def load(self) -> None:
         """从文件加载图谱"""
@@ -192,7 +200,8 @@ class KnowledgeGraph:
         if pkl_path.exists():
             with open(pkl_path, "rb") as f:
                 self.graph = pickle.load(f)
-            print(f"✓ 图谱已加载: {len(self.graph.nodes)} 节点")
+            if self.verbose:
+                print(f"✓ 图谱已加载: {len(self.graph.nodes)} 节点")
 
     def to_visualization_data(self) -> Dict:
         """导出为 D3.js / PyVis 可视化格式"""
@@ -217,13 +226,14 @@ class KnowledgeGraph:
         return {"nodes": nodes, "edges": edges}
 
     def summary(self) -> Dict:
+        categories: Dict[str, int] = {}
+        for _, data in self.graph.nodes(data=True):
+            category = data.get("category", "未知")
+            categories[category] = categories.get(category, 0) + 1
         return {
             "nodes": len(self.graph.nodes),
             "edges": len(self.graph.edges),
-            "categories": pd.Series([
-                d.get("category", "未知")
-                for _, d in self.graph.nodes(data=True)
-            ]).value_counts().to_dict(),
+            "categories": categories,
         }
 
 

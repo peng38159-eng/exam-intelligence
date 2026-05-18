@@ -20,7 +20,7 @@ from src.ingestion.loader import DocumentIngestion
 from src.retrieval.vectorstore import VectorStore
 from src.graph.knowledge_graph import KnowledgeGraph
 from src.agents.workflow import run_exam_query
-from src.generator.review import ForgettingCurve, ReviewAnalyzer, Question
+from src.generator.review import ForgettingCurve, ReviewAnalyzer, Question, QuestionGenerator
 
 # ============ 页面配置 ============
 st.set_page_config(
@@ -197,8 +197,16 @@ def render_practice_tab():
         generate_variants = st.checkbox("生成变形题")
 
     if topic and st.button("📝 开始练习", use_container_width=True):
-        st.session_state.current_tab = "practice"
-        st.rerun()
+        generator = QuestionGenerator()
+        subject = "408" if any(k in topic for k in ["线性表", "树", "图", "排序", "操作系统", "网络"]) else "数学一"
+        st.session_state.practice_questions = generator.generate_questions(
+            topic=topic,
+            difficulty=difficulty,
+            num_questions=num_questions,
+            subject=subject,
+            include_variants=generate_variants,
+        )
+        st.success(f"已生成 {len(st.session_state.practice_questions)} 道练习题")
 
     # 展示练习题（从 session 读取）
     if "practice_questions" in st.session_state and st.session_state.practice_questions:
@@ -402,11 +410,11 @@ def render_dashboard_tab():
 
         priorities = report.get("by_priority", {})
         chart_data = {
-            "状态": ["已掌握 (≥80%)", "学习中 (50-80%)", "薄弱 (<50%)"],
+            "状态": ["已掌握 (≥70%)", "学习中 (40-70%)", "薄弱 (<40%)"],
             "数量": [
-                sum(1 for p in priorities if p in ["low"]),
-                sum(1 for p in priorities if p in ["medium"]),
-                sum(1 for p in priorities if p in ["high"]),
+                priorities.get("low", 0),
+                priorities.get("medium", 0),
+                priorities.get("high", 0),
             ]
         }
         st.bar_chart(chart_data, x="状态", y="数量")

@@ -106,7 +106,7 @@ PDF/TXT  -->  分块+Embedding --> ChromaDB  --> LangGraph  --> Streamlit
                                  NetworkX知识图谱  --> 多Agent协作 --> 搜索/出题/复盘
 ```
 
-详见 [docs/architecture.md](docs/architecture.md)
+详见 [docs/architecture.md](docs/architecture.md) 与 [docs/usage.md](docs/usage.md)
 
 ## 项目结构
 
@@ -117,7 +117,10 @@ exam-intelligence/
 ├── .gitignore
 ├── LICENSE
 ├── docs/
-│   └── architecture.md          # 系统架构文档
+│   ├── architecture.md          # 系统架构文档
+│   └── usage.md                 # 使用指南与开发说明
+├── tests/
+│   └── test_core.py             # 核心逻辑回归测试
 ├── scripts/
 │   └── setup.sh                 # 环境一键安装
 ├── data/                        # 数据目录（运行时创建）

@@ -185,6 +185,8 @@ class Question:
     answer: str
     explanation: str = ""
     variants: List[str] = field(default_factory=list)
+    user_answer: str = ""
+    user_correct: bool = False
 
 
 class QuestionGenerator:
@@ -193,7 +195,8 @@ class QuestionGenerator:
     支持从知识库出题、题目变形、选项干扰项生成
     """
 
-    def __init__(self):
+    def __init__(self, seed: Optional[int] = None):
+        self._random = random.Random(seed)
         self.question_bank = self._load_bank()
 
     def _load_bank(self) -> Dict:
@@ -204,16 +207,50 @@ class QuestionGenerator:
                     {
                         "type": "解答题",
                         "difficulty": "基础",
-                        "template": "用ε-N定义证明：lim(n→∞) {a_n} = {L}",
-                        "answer_template": "∀ε>0，要使|{a_n} - {L}| < ε ...",
+                        "template": "用 ε-N 定义证明：lim(n→∞) {a_n} = {L}",
+                        "answer_template": "证明思路：化简 |{a_n} - {L}|，再由 ε 反解 N。若 n>N 时恒小于 ε，则极限成立。",
+                    },
+                    {
+                        "type": "填空题",
+                        "difficulty": "基础",
+                        "template": "若对任意 ε>0，存在 N，使 n>N 时 |a_n-A|<ε，则 A 称为数列 a_n 的______。",
+                        "answer_template": "极限。关键是‘任意 ε’和‘存在 N’两个量词顺序不能颠倒。",
                     },
                 ],
-                "连续": [...],
-                "导数": [...],
+                "连续": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "中档",
+                        "template": "说明函数在点 x0 连续需要同时满足哪三个条件，并举一个不连续的反例。",
+                        "answer_template": "三个条件：f(x0) 有定义、lim(x→x0)f(x) 存在、二者相等。反例可取分段函数在 x0 左右极限不等。",
+                    },
+                ],
+                "导数": [
+                    {
+                        "type": "解答题",
+                        "difficulty": "中档",
+                        "template": "用导数定义求 f(x)=x² 在 x={x0} 处的导数。",
+                        "answer_template": "f'({x0})=lim(h→0)[({x0}+h)²-{x0}²]/h=lim(h→0)(2{x0}+h)=2{x0}。",
+                    },
+                ],
             },
             "408": {
-                "线性表": [...],
-                "树": [...],
+                "线性表": [
+                    {
+                        "type": "简答题",
+                        "difficulty": "基础",
+                        "template": "比较顺序表和链表在随机访问、插入删除、存储开销上的差异。",
+                        "answer_template": "顺序表随机访问 O(1)，插入删除需移动元素；链表随机访问 O(n)，插入删除改指针即可但有指针存储开销。",
+                    },
+                ],
+                "树": [
+                    {
+                        "type": "计算题",
+                        "difficulty": "中档",
+                        "template": "一棵二叉树有 n0 个叶结点，则度为 2 的结点数是多少？说明理由。",
+                        "answer_template": "n2=n0-1。由二叉树边数 n-1 与度数和 n1+2n2 联立可得。",
+                    },
+                ],
             },
         }
 
@@ -221,21 +258,26 @@ class QuestionGenerator:
         self,
         topic: str,
         difficulty: str,
+        subject: str = "数学一",
         **kwargs,
     ) -> Question:
         """从模板生成题目"""
-        templates = self.question_bank.get("数学一", {}).get(topic, [])
+        templates = self.question_bank.get(subject, {}).get(topic, [])
+        if not templates and subject != "数学一":
+            templates = self.question_bank.get("数学一", {}).get(topic, [])
         if not templates:
             return self._generate_placeholder(topic, difficulty)
 
-        template = random.choice(templates)
-        question_text = template["template"].format(**kwargs)
-        answer_text = template["answer_template"].format(**kwargs)
+        template = self._random.choice(templates)
+        safe_kwargs = {"a_n": "1/n", "L": "0", "x0": "1"}
+        safe_kwargs.update(kwargs)
+        question_text = template["template"].format(**safe_kwargs)
+        answer_text = template["answer_template"].format(**safe_kwargs)
 
         return Question(
-            id=random.randint(1000, 9999),
+            id=self._random.randint(1000, 9999),
             type=template["type"],
-            difficulty=template["difficulty"],
+            difficulty=difficulty or template["difficulty"],
             topic=topic,
             question=question_text,
             answer=answer_text,
@@ -267,15 +309,38 @@ class QuestionGenerator:
         topic: str,
         difficulty: str,
         exclude_ids: List[int] = None,
+        subject: str = "数学一",
     ) -> Question:
         """生成同知识点相似题"""
         exclude_ids = exclude_ids or []
-        # TODO: 从向量库检索同知识点不同chunk，生成新题
+        for _ in range(20):
+            question = self.generate_from_template(topic, difficulty, subject=subject)
+            if question.id not in exclude_ids:
+                return question
         return self._generate_placeholder(topic, difficulty)
+
+    def generate_questions(
+        self,
+        topic: str,
+        difficulty: str,
+        num_questions: int = 3,
+        subject: str = "数学一",
+        include_variants: bool = False,
+    ) -> List[Question]:
+        """批量生成练习题，供 Streamlit 练习页直接调用。"""
+        questions: List[Question] = []
+        used_ids: List[int] = []
+        for _ in range(max(1, num_questions)):
+            question = self.generate_similar(topic, difficulty, used_ids, subject=subject)
+            used_ids.append(question.id)
+            questions.append(question)
+            if include_variants:
+                questions.extend(self.generate_variants(question, num_variants=1))
+        return questions[: max(1, num_questions)]
 
     def _generate_placeholder(self, topic: str, difficulty: str) -> Question:
         return Question(
-            id=random.randint(1000, 9999),
+            id=self._random.randint(1000, 9999),
             type="解答题",
             difficulty=difficulty,
             topic=topic,

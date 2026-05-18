@@ -8,9 +8,15 @@ import hashlib
 from pathlib import Path
 from typing import List, Optional
 
-import fitz  # pymupdf
-import pandas as pd
-from tqdm import tqdm
+try:
+    import fitz  # pymupdf
+except ImportError:  # TXT 入库和单元测试不需要 PyMuPDF
+    fitz = None
+try:
+    from tqdm import tqdm
+except ImportError:
+    def tqdm(iterable, **kwargs):
+        return iterable
 
 
 class DocumentIngestion:
@@ -22,6 +28,13 @@ class DocumentIngestion:
         chunk_size: int = 500,
         chunk_overlap: int = 50,
     ):
+        if chunk_size <= 0:
+            raise ValueError("chunk_size 必须大于 0")
+        if chunk_overlap < 0:
+            raise ValueError("chunk_overlap 不能为负数")
+        if chunk_overlap >= chunk_size:
+            raise ValueError("chunk_overlap 必须小于 chunk_size，否则分块会无法向前推进")
+
         self.upload_dir = Path(upload_dir)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
         self.chunk_size = chunk_size
@@ -30,6 +43,8 @@ class DocumentIngestion:
 
     def extract_text_from_pdf(self, pdf_path: str) -> List[dict]:
         """从 PDF 提取文本，按段落分块"""
+        if fitz is None:
+            raise ImportError("解析 PDF 需要安装 PyMuPDF：pip install pymupdf")
         pages = []
         doc = fitz.open(pdf_path)
         for page_num, page in enumerate(doc, start=1):
@@ -73,18 +88,23 @@ class DocumentIngestion:
                     f"{page['source']}:{start}-{end}".encode()
                 ).hexdigest()[:12]
 
-                chunks.append({
-                    "chunk_id": chunk_id,
-                    "text": chunk_text.strip(),
-                    "page": page["page"],
-                    "source": page["source"],
-                    "metadata": {
-                        "source": page["source"],
-                        "page": page["page"],
+                chunk_text = chunk_text.strip()
+                if chunk_text:
+                    chunks.append({
                         "chunk_id": chunk_id,
-                    }
-                })
-                start = end - self.chunk_overlap
+                        "text": chunk_text,
+                        "page": page["page"],
+                        "source": page["source"],
+                        "metadata": {
+                            "source": page["source"],
+                            "page": page["page"],
+                            "chunk_id": chunk_id,
+                        }
+                    })
+
+                if end >= len(text):
+                    break
+                start = max(end - self.chunk_overlap, start + 1)
 
         self._stats["chunks_created"] += len(chunks)
         return chunks
@@ -132,8 +152,10 @@ class DocumentIngestion:
 def quick_ingest(
     upload_dir: str = "data/uploads",
     output_path: str = "data/chunks.parquet",
-) -> pd.DataFrame:
+):
     """快速入库入口：扫描上传目录，输出 chunk DataFrame"""
+    import pandas as pd
+
     ingester = DocumentIngestion(upload_dir=upload_dir)
     chunks = ingester.process_directory(upload_dir)
 

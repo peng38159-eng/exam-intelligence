@@ -54,17 +54,25 @@ class VectorStore:
             print("没有可入库的 chunks")
             return
 
-        ids = df["chunk_id"].tolist()
-        texts = df["text"].tolist()
-        metadatas = df["metadata"].apply(lambda m: {
-            "source": m.get("source", ""),
-            "page": m.get("page", 0),
-            "text_preview": m["text"][:200] if m.get("text") else "",
-        }).tolist()
+        ids = df["chunk_id"].astype(str).tolist()
+        texts = df["text"].fillna("").astype(str).tolist()
+        metadatas = []
+        for _, row in df.iterrows():
+            metadata = row.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            text = str(row.get("text", ""))
+            metadatas.append({
+                "source": str(metadata.get("source") or row.get("source") or ""),
+                "page": int(metadata.get("page") or row.get("page") or 0),
+                "chunk_id": str(metadata.get("chunk_id") or row.get("chunk_id") or ""),
+                "text_preview": text[:200],
+            })
 
         embeddings = self.embed_texts(texts)
 
-        self.collection.add(
+        # 使用 upsert，避免重复上传同一文件时 ChromaDB 因重复 id 报错。
+        self.collection.upsert(
             ids=ids,
             documents=texts,
             embeddings=embeddings,
